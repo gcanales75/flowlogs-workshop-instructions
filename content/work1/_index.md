@@ -256,7 +256,7 @@ As soon as you save que query, the task will be validated.
 
 To protect the instances from potentially malicious traffic you could use VPC Security Grups, in this challenge you must remediate the ones associated with the 3 instances provisioned in this lab environment.
 
-Look at the network environment
+Take a look at the network diagram
 
 <img src="images/flowlogs-challenge-diagram.png" alt="drawing" width="600"/>
 
