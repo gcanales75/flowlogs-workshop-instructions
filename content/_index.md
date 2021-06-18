@@ -17,3 +17,7 @@ weight = 1
 1. Improve visuals in challenge validation web site
 
 1. Overall instructions narrative text, this is a *minimum viable product*
+
+Validation web site screenshot:
+
+<img src="images/validation-site.png" alt="drawing" width="600"/>
