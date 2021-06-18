@@ -83,10 +83,10 @@ Click on **Actions** -> **Create metric fiter**
 Below **Filter pattern** paste the below *string* and hit **Enter**
 
 ```sh
-[version, account, eni, source, destination, srcport, destport="22", protocol="6", packets, bytes, windowstart, windowend, action="ACCEPT", flowlogstatus]
+[version, account, eni, source, destination, srcport, destport="22", protocol="6", packets, bytes, windowstart, windowend, action, flowlogstatus]
 ```
 
-This string will filter *accepted* (action="ACCEPT") flow logs targeting incoming traffic on port **22** (destport="22") and protocol **TCP** (protocol="6")
+This string will filter flow logs targeting incoming traffic on port **22** (destport="22") and protocol **TCP** (protocol="6")
 
 Click on **Next**
 
@@ -94,9 +94,9 @@ In the **Assign metric** step complete the following fields:
 
 | Key | Value  |
 |---|---|
-| Filter name  | port_22-accept |
+| Filter name  | port_22 |
 | Metric namespace  | flowlogs |
-| Metric name | port_22-accept |
+| Metric name | port_22 |
 | Metric value  | 1 |
 | Unit – optional  | Count |
 | 1st Dimension Name  | ENI |
@@ -116,7 +116,7 @@ Reference: https://docs.aws.amazon.com/vpc/latest/userguide/flow-logs-cwl.html#p
 
 You will create two additional metric filters, one filtering port `80` (HTTP) and the second one filtering port `3389` (RDP). These are commonly known as vulnerable ports when exposed in the internet.
 
-For the **Metric name** and **Filter name** please use this pattern: **port_`##`-accept**.
+For the **Metric name** and **Filter name** please use this pattern: **port_`##`**.
 
 Use the following filters configuration for both filters:
 
