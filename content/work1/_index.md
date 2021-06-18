@@ -27,6 +27,10 @@ Go to Cloudformation Outputs tab and copy the following outputs, you will need t
 
   * Partner server Public IP
 
+    {{% notice info %}}
+  This parameters (IPs) will be published as "outputs" in AWS Labs, there would not be need to pick them up from CloudFormation *outputs* tab
+  {{% /notice %}}
+
 In a separate browser open the Lab Tutorial validation web site, use the *Validation web server Public IP* paramenter from the Cloudformation Outputs
 
 ### Module 1: Enable Flow Logs in VPC
@@ -248,8 +252,6 @@ You must see a similar output in the log result window:
 
 <img src="images/log-insights-sample-output.png" alt="drawing" width="300"/>
 
-QUERY SCRIPT TO BE REMOVED, I'M LEAVING IT HERE FOR REFERENCE
-
 ```sql
 filter dstPort="80" 
 | filter dstAddr="xxx.xxx.xxx.xxx"
@@ -257,6 +259,11 @@ filter dstPort="80"
 | sort records desc 
 | limit 10
 ```
+
+  {{% notice info %}}
+QUERY SCRIPT TO BE REMOVED, I'M LEAVING IT HERE FOR REFERENCE
+{{% /notice %}}
+
 
 Once you have figured the SQL script out, click on **Actions** and select **Save as**. Please name it as `top-incoming-records-by-source-on-port-80`.
 
