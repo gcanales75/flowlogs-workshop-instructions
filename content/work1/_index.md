@@ -9,7 +9,7 @@ pre = "<b>1. </b>"
 
 [narrative]
 
-This is the initial diagram
+This is the lab environment diagram
 
 <img src="images/flowlogs-initial-deploy.png" alt="drawing" width="600"/>
 
