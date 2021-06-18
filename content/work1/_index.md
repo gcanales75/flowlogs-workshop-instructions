@@ -13,7 +13,7 @@ This is the initial diagram
 
 <img src="images/flowlogs-initial-deploy.png" alt="drawing" width="600"/>
 
-In this Lab tutorials lab environment you will be asked to complete 13 different challenges, the validation web site will confirm you once the challenges are completed. 
+In this Lab tutorials lab environment you will be asked to complete 13 different challenges, the validation web site will confirm you once the challenges are completed.
 
 To complete the challenge, in a few cases we will give you a walkthrough, but for the most of them you will not be provided with a step-by-step guide, instead, you will be provided with hints and documentation references to perform those challenges.
 
@@ -32,8 +32,6 @@ In a separate browser open the Lab Tutorial validation web site, use the *Valida
 ### Module 1: Enable Flow Logs in VPC
 
 In this first module you will perform activities to enable the VPC Flow Logs service
-
-**Challenge**
 
 Create a VPC Flow Log that will **pubish logs to CloudWatch Logs**. Prior to complete this task, you will need to create some services:
 
@@ -57,6 +55,14 @@ Use the below Flow log settings (some settings were ommited deliberately):
 | Log record format  | AWS default format |
 
 <br>
+
+**Module 1 Challenges:**
+
+| Challenge | Description  |
+|---|---|
+| 1 | Create IAM Policy  |
+| 2 | Create Log group  |
+| 3 | Enable VPC Flow Logs |
 
 As soon as the VPC Flow log is created the challenge will be validated.
 
@@ -111,8 +117,6 @@ Click on **Next**
 Click on **Create metric filter**
 
 Reference: https://docs.aws.amazon.com/vpc/latest/userguide/flow-logs-cwl.html#process-records-cwl
-
-**Challenge:**
 
 You will create two additional metric filters, one filtering port `80` (HTTP) and the second one filtering port `3389` (RDP). These are commonly known as vulnerable ports when exposed in the internet.
 
@@ -169,11 +173,19 @@ Your graph (or *widget*) has beed added to the Dashboard, click on **Save dashbo
 
 Note: you could resize the widget and change the data time span to **1h** for better visualization, remember to save you Dashboard changes.
 
-**Challenge:**
-
 Now, you will repeat the process for the **port_80** and **port_3389** metric filters.
 
 Once you have added the three widgets to your Dashboard, challenge will be marked as completed
+
+**Module 2 Challenges:**
+
+| Challenge | Description  |
+|---|---|
+| 1 | Create a CloudWatch Dashboard  |
+| 2 | Create metric filter "port_22"  |
+| 3 | Create metric filter "port_80" |
+| 4 | Create metric filter "port_3389" |
+| 5 | Add widgets to Dashboard |
 
 ### Task 3: Analyzing VPC Flow Logs with CloudWatch Logs Insights
 
@@ -226,8 +238,6 @@ On **Query name** type "top-incoming-records-per-port-webserver-1".
 
 Leave the rest of the paramenters as default,and click on **Save**
 
-**Challenge:**
-
 Now you will run another SQL script, this time you will query the top incoming records on port 80, to Web server 2 and sorted by source IP.
 
 Hint 1: the query will count the number of records and group them by srcAddr
@@ -250,6 +260,13 @@ filter dstPort="80"
 
 Once you have figured the SQL script out, click on **Actions** and select **Save as**. Please name it as `top-incoming-records-by-source-on-port-80`.
 
+**Module 3 Challenges:**
+
+| Challenge | Description  |
+|---|---|
+| 1 | Save query #1 |
+| 2 | Save query #2 |
+
 As soon as you save que query, the task will be validated.
 
 ### Task 4: Identify and remediate over permissive firewall rules in Security Groups
@@ -267,12 +284,10 @@ Modify the Web server 1 Security Group inbound rules:
 | Type | Port range  | Source |
 |---|---|---|
 | HTTPS  | 443  | 0.0.0.0/0 |
-| Custom TCP  | 8020  | Web server 2 security group ID |
-| Custom TCP  | 8080  | Web server 2 security group ID |
+| Custom TCP  | 8020 | Web server 2 security group ID |
+| Custom TCP  | 8080 | Web server 2 security group ID |
 
 <br>
-
-**Challenge:**
 
 Now please update the Web server 2 and DB server Security Groups according to the network diagram.
 
@@ -282,6 +297,14 @@ Reference: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/security-group-ru
 
 A few minutes after you made the updates in the security groups you will see a change in the CloudWatch dashboard you have created. A significant reduction in the number of incoming log records to the instances and an increase in the rejected flow logs records.
 
-Challenges will update as completed as soon as you update the security group incoming rules.
+**Module 4 Challenges:**
+
+| Challenge | Description  |
+|---|---|
+| 1 | Update Web server 1 security group |
+| 2 | Update Web server 2 security group |
+| 3 | Update DB server 1 security group |
+
+Challenge status will be updated as completed as soon as you update the security group incoming rules.
 
 Congratulations!
