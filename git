@@ -1,6 +1,6 @@
 Add remote repo
-# git remote add containers-on-aws codecommit://containers-on-aws
+# git remote add flowlogs-workshop-instructions git@github.com:gcanales75/flowlogs-workshop-instructions.git
 
 git add .
 git commit -m "----"
-git push -u containers-on-aws mainline
+git push -u flowlogs-workshop-instructions main

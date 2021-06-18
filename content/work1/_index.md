@@ -31,7 +31,11 @@ In a separate browser open the Lab Tutorial validation web site, use the *Valida
 
 ### Module 1: Enable Flow Logs in VPC
 
-You will create a VPC Flow Log that will **pubish logs to CloudWatch Logs**. Prior to complete this task, you will need to create some services:
+In this first module you will perform activities to enable the VPC Flow Logs service
+
+**Challenge**
+
+Create a VPC Flow Log that will **pubish logs to CloudWatch Logs**. Prior to complete this task, you will need to create some services:
 
   * IAM policy and role. Please name your role `vpc-flow-logs-role` to validate the challenge.
 
@@ -165,6 +169,8 @@ Your graph (or *widget*) has beed added to the Dashboard, click on **Save dashbo
 
 Note: you could resize the widget and change the data time span to **1h** for better visualization, remember to save you Dashboard changes.
 
+**Challenge:**
+
 Now, you will repeat the process for the **port_80** and **port_3389** metric filters.
 
 Once you have added the three widgets to your Dashboard, challenge will be marked as completed
@@ -266,6 +272,8 @@ Modify the Web server 1 Security Group inbound rules:
 
 <br>
 
+**Challenge:**
+
 Now please update the Web server 2 and DB server Security Groups according to the network diagram.
 
 Hint: https://docs.aws.amazon.com/vpc/latest/userguide/VPC_SecurityGroups.html#SecurityGroupRules
@@ -276,4 +284,4 @@ A few minutes after you made the updates in the security groups you will see a c
 
 Challenges will update as completed as soon as you update the security group incoming rules.
 
-Congratulations!!
+Congratulations!
