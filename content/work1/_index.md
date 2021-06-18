@@ -13,11 +13,11 @@ This is the initial diagram
 
 <img src="images/flowlogs-initial-deploy.png" alt="drawing" width="600"/>
 
-In this Lab tutorials lab environment you will be asked to complete several tasks. In each task you will not be provided with a step-by-step guide, instead, you will be provided with hints and documentation references to perform those tasks.
+In this Lab tutorials lab environment you will be asked to complete 13 different challenges, the validation web site will confirm you once the challenges are completed. 
 
-At the end of each task, please go to the validation web page to confirm if the task was completed correctly
+To complete the challenge, in a few cases we will give you a walkthrough, but for the most of them you will not be provided with a step-by-step guide, instead, you will be provided with hints and documentation references to perform those challenges.
 
-Go to Cloudformation Outputs tab and copy the following outputs, you will need them thru the challenge activities
+Go to Cloudformation Outputs tab and copy the following outputs, you will need them thru the challenge activities.
 
   * Validation web server Public IP
 
