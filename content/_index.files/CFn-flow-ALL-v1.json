@@ -1,0 +1,1196 @@
+{
+    "AWSTemplateFormatVersion":"2010-09-09",
+    "Description":"This template creates the Lab Tutorials - FlowLogs environment",
+    "Parameters":{
+        "KeyPair":{
+            "Type" : "AWS::EC2::KeyPair::KeyName",
+            "Description" : "EC2 key pair name",
+            "Default":"ee-default-keypair"
+        },
+        "CognitoIdentityPoolName":{
+            "Type":"String",
+            "Default":"labtutorials",
+            "Description":"Cognito Identity Pool Name"
+        },
+        "DynamoDBTableName":{
+            "Type":"String",
+            "Default":"lab-tutorials",
+            "Description":"DynamoDB table Name"
+        }
+    },
+    "Resources":{
+        "CognitoIdentityPoolUnauthRole" : {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "RoleName" : "cognito-lab-tutorials-role",
+                "AssumeRolePolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Principal": { "Federated": "cognito-identity.amazonaws.com" },
+                            "Action": [
+                                "sts:AssumeRoleWithWebIdentity"
+                            ],
+                            "Condition": {
+                                "StringEquals": {
+                                    "cognito-identity.amazonaws.com:aud": { "Ref" : "CognitoIdentityPool" }
+                                },
+                                "ForAnyValue:StringLike": {
+                                    "cognito-identity.amazonaws.com:amr": "unauthenticated"
+                                }
+                            }
+                        }
+                    ]
+                },
+                "Policies": [
+                    {
+                        "PolicyName": "cognito-lab-tutorials-policy",
+                        "PolicyDocument": {
+                            "Version": "2012-10-17",
+                            "Statement": [
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "cognito-sync:*",
+                                        "mobileanalytics:PutEvents",
+                                        "dynamodb:BatchGetItem",
+                                        "dynamodb:Describe*",
+                                        "dynamodb:List*",
+                                        "dynamodb:GetItem",
+                                        "dynamodb:Query",
+                                        "dynamodb:Scan",
+                                        "dynamodb:PutItem",
+                                        "sns:*"
+                                    ],
+                                    "Resource": "*"
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        },
+        "CognitoIdentityPool" : {
+            "Type" : "AWS::Cognito::IdentityPool",
+            "Properties" : {
+                "AllowUnauthenticatedIdentities" : true,
+                "IdentityPoolName" : { "Ref" : "CognitoIdentityPoolName" }
+            }
+        },
+        "CognitoUnauthRoleAttachment" : {
+            "Type" : "AWS::Cognito::IdentityPoolRoleAttachment",
+            "Properties" : {
+                "IdentityPoolId" : { "Ref" : "CognitoIdentityPool" },
+                "Roles" : {
+                    "unauthenticated":{
+                        "Fn::GetAtt" : [ "CognitoIdentityPoolUnauthRole", "Arn" ]
+                    }
+                }
+            }
+        },
+        "DynamoDbHashTable" : {
+            "Type" : "AWS::DynamoDB::Table",
+            "Properties" : {
+                "KeySchema" : [
+                    { 
+                        "AttributeName" : "taskId",
+                        "KeyType" : "HASH" 
+                    }
+                ],
+                "AttributeDefinitions" : [
+                    {
+                        "AttributeName" : "taskId",
+                        "AttributeType" : "S"
+                    }
+                ],
+                "BillingMode" : "PAY_PER_REQUEST",
+                "TableName" : { "Ref" : "DynamoDBTableName" }
+            }
+        },
+        "lambdaRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "RoleName" : "flowlogs-lambda-execution-role",
+                "AssumeRolePolicyDocument": {
+                    "Version": "2012-10-17", 
+                    "Statement": [
+                        {
+                            "Action": "sts:AssumeRole", 
+                            "Effect": "Allow", 
+                            "Principal": {
+                                "Service": "lambda.amazonaws.com"
+                            }
+                        }
+                    ]
+                },
+                "Path": "/",
+                "Policies": [
+                    {
+                        "PolicyName": "flowlogs-lambda-execution-policy",
+                        "PolicyDocument": {
+                            "Version": "2012-10-17",
+                            "Statement": [
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "dynamodb:*",
+                                        "iam:*",
+                                        "logs:*",
+                                        "cloudwatch:*",
+                                        "ec2:*"
+                                    ],
+                                    "Resource": "*"
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        },
+        "snsTopicLambda": {
+            "Type" : "AWS::SNS::Topic",
+            "Properties" : {
+                "DisplayName" : "flowlogs-validation",
+                "FifoTopic" : false,
+                "TopicName" : "flowlogs-validation"
+            }
+        },
+        "VPC":{
+            "Type":"AWS::EC2::VPC",
+            "Properties":{
+                "EnableDnsSupport":"true",
+                "EnableDnsHostnames":"true",
+                "CidrBlock": "10.100.0.0/16",
+                "Tags":[
+                    {
+                        "Key":"Name",
+                        "Value":"VPC-Lab-Flowlogs"
+                    }
+                ]
+            }
+        },
+        "PublicSubnet1":{
+            "Type":"AWS::EC2::Subnet",
+            "Properties":{
+                "AvailabilityZone":"us-west-2a",
+                "VpcId":{
+                    "Ref":"VPC"
+                },
+                "CidrBlock":"10.100.0.0/24",
+                "Tags":[
+                    {
+                        "Key":"Network",
+                        "Value":"Public"
+                    },
+                    {
+                        "Key":"Name",
+                        "Value":"public-subnet-1"
+                    }
+                ]
+            }
+        },
+        "PublicSubnet2":{
+            "Type":"AWS::EC2::Subnet",
+            "Properties":{
+                "AvailabilityZone":"us-west-2b",
+                "VpcId":{
+                    "Ref":"VPC"
+                },
+                "CidrBlock":"10.100.1.0/24",
+                "Tags":[
+                    {
+                        "Key":"Network",
+                        "Value":"Public"
+                    },
+                    {
+                        "Key":"Name",
+                        "Value":"public-subnet-2"
+                    }
+                ]
+            }
+        },
+        "PrivateSubnet1":{
+            "Type":"AWS::EC2::Subnet",
+            "Properties":{
+                "AvailabilityZone":"us-west-2a",
+                "VpcId":{
+                    "Ref":"VPC"
+                },
+                "CidrBlock":"10.100.2.0/24",
+                "Tags":[
+                    {
+                        "Key":"Network",
+                        "Value":"Private"
+                    },
+                    {
+                        "Key":"Name",
+                        "Value":"private-subnet-1"
+                    }
+                ]
+            }
+        },
+        "PrivateSubnet2":{
+            "Type":"AWS::EC2::Subnet",
+            "Properties":{
+                "AvailabilityZone":"us-west-2b",
+                "VpcId":{
+                    "Ref":"VPC"
+                },
+                "CidrBlock":"10.100.3.0/24",
+                "Tags":[
+                    {
+                        "Key":"Network",
+                        "Value":"Private"
+                    },
+                    {
+                        "Key":"Name",
+                        "Value":"private-subnet-2"
+                    }
+                ]
+            }
+        },
+        "InternetGateway":{
+            "Type":"AWS::EC2::InternetGateway"
+        },
+        "GatewayToInternet":{
+            "Type":"AWS::EC2::VPCGatewayAttachment",
+            "Properties":{
+                "VpcId":{
+                    "Ref":"VPC"
+                },
+                "InternetGatewayId":{
+                    "Ref":"InternetGateway"
+                }
+            }
+        },
+        "PublicRouteTable":{
+            "Type":"AWS::EC2::RouteTable",
+            "Properties":{
+                "VpcId":{
+                    "Ref":"VPC"
+                }
+            }
+        },
+        "PrivateRouteTable":{
+            "Type":"AWS::EC2::RouteTable",
+            "Properties":{
+                "VpcId":{
+                    "Ref":"VPC"
+                }
+            }
+        },
+        "PublicRoute":{
+            "Type":"AWS::EC2::Route",
+            "DependsOn":"GatewayToInternet",
+            "Properties":{
+                "RouteTableId":{
+                    "Ref":"PublicRouteTable"
+                },
+                "DestinationCidrBlock":"0.0.0.0/0",
+                "GatewayId":{
+                    "Ref":"InternetGateway"
+                }
+            }
+        },
+        "PrivateRoute":{
+            "Type":"AWS::EC2::Route",
+            "DependsOn":"NatGw",
+            "Properties":{
+                "RouteTableId":{
+                    "Ref":"PrivateRouteTable"
+                },
+                "DestinationCidrBlock":"0.0.0.0/0",
+                "NatGatewayId":{
+                    "Ref":"NatGw"
+                }
+            }
+        },
+        "PublicSubnetRouteTableAssociation1":{
+            "Type":"AWS::EC2::SubnetRouteTableAssociation",
+            "Properties":{
+                "SubnetId":{
+                    "Ref":"PublicSubnet1"
+                },
+                "RouteTableId":{
+                    "Ref":"PublicRouteTable"
+                }
+            }
+        },
+        "PublicSubnetRouteTableAssociation2":{
+            "Type":"AWS::EC2::SubnetRouteTableAssociation",
+            "Properties":{
+                "SubnetId":{
+                    "Ref":"PublicSubnet2"
+                },
+                "RouteTableId":{
+                    "Ref":"PublicRouteTable"
+                }
+            }
+        },
+        "PrivateSubnetRouteTableAssociation1":{
+            "Type":"AWS::EC2::SubnetRouteTableAssociation",
+            "Properties":{
+                "SubnetId":{
+                    "Ref":"PrivateSubnet1"
+                },
+                "RouteTableId":{
+                    "Ref":"PrivateRouteTable"
+                }
+            }
+        },
+        "PrivateSubnetRouteTableAssociation2":{
+            "Type":"AWS::EC2::SubnetRouteTableAssociation",
+            "Properties":{
+                "SubnetId":{
+                    "Ref":"PrivateSubnet2"
+                },
+                "RouteTableId":{
+                    "Ref":"PrivateRouteTable"
+                }
+            }
+        },
+        "ElasticIp":{
+            "Type" : "AWS::EC2::EIP",
+            "Properties" : {
+                "Domain" : "vpc"
+            }
+        },
+        "NatGw":{
+            "Type" : "AWS::EC2::NatGateway",
+            "Properties" : {
+                "AllocationId" : { "Fn::GetAtt" : [ "ElasticIp", "AllocationId" ] },
+                "SubnetId" : { "Ref" : "PublicSubnet1" }
+            }
+        },         
+        "web1Sg" : {
+            "Type" : "AWS::EC2::SecurityGroup",
+            "Properties" : {
+                "GroupName" : "web-1-instance-sg",
+                "GroupDescription" : "web-server-1 security group",
+                "VpcId" : {"Ref" : "VPC"},
+                "SecurityGroupIngress" : [
+                    {
+                        "IpProtocol" : "-1",
+                        "CidrIp" : "0.0.0.0/0"
+                    }
+                ]    
+            }
+        },
+        "web2Sg" : {
+            "Type" : "AWS::EC2::SecurityGroup",
+            "Properties" : {
+                "GroupName" : "web-2-instance-sg",
+                "GroupDescription" : "web-server-2 security group",
+                "VpcId" : {"Ref" : "VPC"},
+                "SecurityGroupIngress" : [
+                    {
+                        "IpProtocol" : "-1",
+                        "CidrIp" : "0.0.0.0/0"
+                    }
+                ]    
+            }
+        },
+        "db1Sg" : {
+            "Type" : "AWS::EC2::SecurityGroup",
+            "Properties" : {
+                "GroupName" : "db-1-instance-sg",
+                "GroupDescription" : "db-server-1 security group",
+                "VpcId" : {"Ref" : "VPC"},
+                "SecurityGroupIngress" : [
+                    {
+                        "IpProtocol" : "-1",
+                        "CidrIp" : "0.0.0.0/0"
+                    }
+                ]    
+            }
+        },
+        "Ec2InstanceRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                    "Version": "2012-10-17", 
+                    "Statement": [
+                        {
+                            "Action": "sts:AssumeRole", 
+                            "Effect": "Allow", 
+                            "Principal": {
+                                "Service": "ec2.amazonaws.com"
+                            }
+                        }
+                    ]
+                },
+                "Path": "/",
+                "Policies": [
+                    {
+                        "PolicyName": "Ec2Policy",
+                        "PolicyDocument": {
+                            "Version": "2012-10-17",
+                            "Statement": [
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "ecr:CreateRepository",
+                                        "ecr:GetAuthorizationToken",
+                                        "ecs:DescribeTaskSets",
+                                        "ecr:UploadLayerPart",
+                                        "ecs:DescribeTaskDefinition",
+                                        "ecr:PutImage",
+                                        "ecs:DescribeClusters",
+                                        "ecs:ListAccountSettings",
+                                        "ecs:DescribeCapacityProviders",
+                                        "ecs:ListTagsForResource",
+                                        "ecs:RunTask",
+                                        "ecr:CompleteLayerUpload",
+                                        "ecr:DescribeRepositories",
+                                        "ecs:DescribeServices",
+                                        "sts:GetCallerIdentity",
+                                        "ecs:DescribeContainerInstances",
+                                        "ecr:InitiateLayerUpload",
+                                        "ecs:DescribeTasks",
+                                        "ecr:BatchCheckLayerAvailability",
+                                        "iam:PassRole",
+                                        "ec2:Describe*",
+                                        "ssm:PutParameter",
+                                        "ssm:GetParameters"
+                                    ],
+                                    "Resource": "*"
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        },
+        "Ec2InstProfile" : {
+            "Type" : "AWS::IAM::InstanceProfile",
+            "Properties" : {
+                "InstanceProfileName" : "Ec2ParamStoreAccessInstProfile",
+                "Roles" : [{"Ref" : "Ec2InstanceRole"}]
+            }
+        },
+        "ec2Web1": {
+            "Type": "AWS::EC2::Instance",
+            "DependsOn":"SsmParamStoreDbPrivateIp",
+            "Properties" : {
+                "ImageId" : "ami-0cf6f5c8a62fa5da6",
+                "KeyName" : { "Ref" : "KeyPair" },
+                "InstanceType": "t3.small",
+                "NetworkInterfaces": [ {
+                    "AssociatePublicIpAddress": "true",
+                    "DeviceIndex": "0",
+                    "GroupSet": [{ "Ref" : "web1Sg" }],
+                    "SubnetId": { "Ref" : "PublicSubnet1" }
+                } ],
+                "UserData" : { "Fn::Base64": { "Fn::Join" : [  "" , [
+                    "#!/bin/bash\n",
+                    "sudo yum update -y\n",
+                    "sudo yum install nmap -y\n",
+                    "export INSTANCE_ID=`curl -s http://169.254.169.254/latest/meta-data/instance-id`\n",
+                    "export INSTANCE_ENI=`aws ec2 describe-instances --instance-ids $INSTANCE_ID --region us-west-2 --query 'Reservations[0].Instances[0].NetworkInterfaces[0].NetworkInterfaceId' --output text`\n",
+                    "aws ssm put-parameter --name eni-webserver-1 --type String --value $INSTANCE_ENI --region us-west-2\n",
+                    "curl -o scanner.sh https://ee-assets-prod-us-east-1.s3.us-east-1.amazonaws.com/modules/e9318bb0fd774c42a9eaa3cae67eafda/v1/scanner-11.sh\n",
+                    "sudo chmod +x scanner.sh\n",
+                    "./scanner.sh\n"
+                    ]]}
+                },
+                "Tags" : [
+                    { "Key" : "Name" , "Value" : "web-server-1" }
+                ],
+                "IamInstanceProfile" : "Ec2ParamStoreAccessInstProfile"
+            }
+        },
+        "ec2Web2": {
+            "Type": "AWS::EC2::Instance",
+            "DependsOn":"SsmParamStoreDbPrivateIp",
+            "Properties" : {
+                "ImageId" : "ami-0cf6f5c8a62fa5da6",
+                "KeyName" : { "Ref" : "KeyPair" },
+                "InstanceType": "t3.small",
+                "NetworkInterfaces": [ {
+                    "AssociatePublicIpAddress": "true",
+                    "DeviceIndex": "0",
+                    "GroupSet": [{ "Ref" : "web2Sg" }],
+                    "SubnetId": { "Ref" : "PublicSubnet2" }
+                } ],
+                "UserData" : { "Fn::Base64": { "Fn::Join" : [  "" , [
+                    "#!/bin/bash\n",
+                    "sudo yum update -y\n",
+                    "sudo yum install nmap -y\n",
+                    "export INSTANCE_ID=`curl -s http://169.254.169.254/latest/meta-data/instance-id`\n",
+                    "export INSTANCE_ENI=`aws ec2 describe-instances --instance-ids $INSTANCE_ID --region us-west-2 --query 'Reservations[0].Instances[0].NetworkInterfaces[0].NetworkInterfaceId' --output text`\n",
+                    "aws ssm put-parameter --name eni-webserver-2 --type String --value $INSTANCE_ENI --region us-west-2\n",
+                    "curl -o scanner.sh https://ee-assets-prod-us-east-1.s3.us-east-1.amazonaws.com/modules/e9318bb0fd774c42a9eaa3cae67eafda/v1/scanner-12.sh\n",
+                    "sudo chmod +x scanner.sh\n",
+                    "./scanner.sh\n"
+                    ]]}
+                },
+                "Tags" : [
+                    { "Key" : "Name" , "Value" : "web-server-2" }
+                ],
+                "IamInstanceProfile" : "Ec2ParamStoreAccessInstProfile"
+            }
+        },
+        "ec2Db1": {
+            "Type": "AWS::EC2::Instance",
+            "Properties" : {
+                "ImageId" : "ami-0cf6f5c8a62fa5da6",
+                "KeyName" : { "Ref" : "KeyPair" },
+                "InstanceType": "t3.small",
+                "NetworkInterfaces": [ {
+                    "AssociatePublicIpAddress": "true",
+                    "DeviceIndex": "0",
+                    "GroupSet": [{ "Ref" : "db1Sg" }],
+                    "SubnetId": { "Ref" : "PrivateSubnet1" }
+                } ],
+                "UserData" : { "Fn::Base64": { "Fn::Join" : [  "" , [
+                    "#!/bin/bash\n",
+                    "sudo yum update -y\n",
+                    "export INSTANCE_ID=`curl -s http://169.254.169.254/latest/meta-data/instance-id`\n",
+                    "export INSTANCE_ENI=`aws ec2 describe-instances --instance-ids $INSTANCE_ID --region us-west-2 --query 'Reservations[0].Instances[0].NetworkInterfaces[0].NetworkInterfaceId' --output text`\n",
+                    "aws ssm put-parameter --name eni-dbserver --type String --value $INSTANCE_ENI --region us-west-2\n"
+                    ]]}
+                },
+                "Tags" : [
+                    { "Key" : "Name" , "Value" : "db-server-1" }
+                ],
+                "IamInstanceProfile" : "Ec2ParamStoreAccessInstProfile"
+            }
+        },
+        "SsmParamStoreDbPrivateIp" : {
+            "Type" : "AWS::SSM::Parameter",
+            "DependsOn":"ec2Db1",
+            "Properties" : {
+                "Description" : "EC2 instance db server Private IP",
+                "Name" : "dbserver",
+                "Type" : "String",
+                "Value" : { "Fn::GetAtt" : [ "ec2Db1", "PrivateIp" ] }
+            }
+        },
+        "SsmParamStoreWebServer1PublicIp" : {
+            "Type" : "AWS::SSM::Parameter",
+            "DependsOn":"ec2Web1",
+            "Properties" : {
+                "Description" : "EC2 webserver 1 instance Private IP",
+                "Name" : "webserver-1",
+                "Type" : "String",
+                "Value" : { "Fn::GetAtt" : [ "ec2Web1", "PublicIp" ] }
+            }
+        },
+        "SsmParamStoreWebServer2PublicIp" : {
+            "Type" : "AWS::SSM::Parameter",
+            "DependsOn":"ec2Web2",
+            "Properties" : {
+                "Description" : "EC2 webserver 2 instance Private IP",
+                "Name" : "webserver-2",
+                "Type" : "String",
+                "Value" : { "Fn::GetAtt" : [ "ec2Web2", "PublicIp" ] }
+            }
+        },
+        "vpcScanners":{
+            "Type":"AWS::EC2::VPC",
+            "Properties":{
+                "EnableDnsSupport":"true",
+                "EnableDnsHostnames":"true",
+                "CidrBlock": "10.200.0.0/16",
+                "Tags":[
+                    {
+                        "Key":"Name",
+                        "Value":"VPC-Lab-Flowlogs-scanners"
+                    }
+                ]
+            }
+        },
+        "scannerPublicSubnet1":{
+            "Type":"AWS::EC2::Subnet",
+            "Properties":{
+                "AvailabilityZone":"us-west-2a",
+                "VpcId":{
+                    "Ref":"vpcScanners"
+                },
+                "CidrBlock":"10.200.0.0/24",
+                "Tags":[
+                    {
+                        "Key":"Network",
+                        "Value":"Public"
+                    },
+                    {
+                        "Key":"Name",
+                        "Value":"public-subnet-1"
+                    }
+                ]
+            }
+        },
+        "scannerInternetGateway":{
+            "Type":"AWS::EC2::InternetGateway"
+        },
+        "scannerGatewayToInternet":{
+            "Type":"AWS::EC2::VPCGatewayAttachment",
+            "Properties":{
+                "VpcId":{
+                    "Ref":"vpcScanners"
+                },
+                "InternetGatewayId":{
+                    "Ref":"scannerInternetGateway"
+                }
+            }
+        },
+        "scannerPublicRouteTable":{
+            "Type":"AWS::EC2::RouteTable",
+            "Properties":{
+                "VpcId":{
+                    "Ref":"vpcScanners"
+                }
+            }
+        },
+        "scannerPublicRoute":{
+            "Type":"AWS::EC2::Route",
+            "DependsOn":"scannerGatewayToInternet",
+            "Properties":{
+                "RouteTableId":{
+                    "Ref":"scannerPublicRouteTable"
+                },
+                "DestinationCidrBlock":"0.0.0.0/0",
+                "GatewayId":{
+                    "Ref":"scannerInternetGateway"
+                }
+            }
+        },
+        "scannerPublicSubnetRouteTableAssociation1":{
+            "Type":"AWS::EC2::SubnetRouteTableAssociation",
+            "Properties":{
+                "SubnetId":{
+                    "Ref":"scannerPublicSubnet1"
+                },
+                "RouteTableId":{
+                    "Ref":"scannerPublicRouteTable"
+                }
+            }
+        },
+        "scannerInstanceRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                    "Version": "2012-10-17", 
+                    "Statement": [
+                        {
+                            "Action": "sts:AssumeRole", 
+                            "Effect": "Allow", 
+                            "Principal": {
+                                "Service": "ec2.amazonaws.com"
+                            }
+                        }
+                    ]
+                },
+                "Path": "/",
+                "Policies": [
+                    {
+                        "PolicyName": "Ec2Policy",
+                        "PolicyDocument": {
+                            "Version": "2012-10-17",
+                            "Statement": [
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "iam:PassRole",
+                                        "ec2:Describe*",
+                                        "ssm:GetParameters",
+                                        "cognito-identity:ListIdentityPools",
+                                        "sts:*"
+                                    ],
+                                    "Resource": "*"
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        },
+        "scannerInstProfile" : {
+            "Type" : "AWS::IAM::InstanceProfile",
+            "Properties" : {
+                "InstanceProfileName" : "scannerInstanceProfile",
+                "Roles" : [{"Ref" : "scannerInstanceRole"}]
+            }
+        },
+        "scannerSg" : {
+            "Type" : "AWS::EC2::SecurityGroup",
+            "Properties" : {
+                "GroupName" : "scanner-sg",
+                "GroupDescription" : "scanner security group",
+                "VpcId" : {"Ref" : "vpcScanners"}
+            }
+        },
+        "scanner1": {
+            "Type": "AWS::EC2::Instance",
+            "DependsOn": [ "SsmParamStoreWebServer1PublicIp", "SsmParamStoreWebServer2PublicIp", "SsmParamStoreDbPrivateIp" ],
+            "Properties" : {
+                "ImageId" : "ami-0cf6f5c8a62fa5da6",
+                "KeyName" : { "Ref" : "KeyPair" },
+                "InstanceType": "t3.micro",
+                "NetworkInterfaces": [ {
+                    "AssociatePublicIpAddress": "true",
+                    "DeviceIndex": "0",
+                    "GroupSet": [{ "Ref" : "scannerSg" }],
+                    "SubnetId": { "Ref" : "scannerPublicSubnet1" }
+                } ],
+                "UserData" : { "Fn::Base64": { "Fn::Join" : [  "" , [
+                    "#!/bin/bash\n",
+                    "sudo yum update -y\n",
+                    "sudo yum install nmap -y\n",
+                    "curl -o scanner.sh https://ee-assets-prod-us-east-1.s3.us-east-1.amazonaws.com/modules/e9318bb0fd774c42a9eaa3cae67eafda/v1/scanner-1.sh\n",
+                    "sudo chmod +x scanner.sh\n",
+                    "./scanner.sh\n"
+                    ]]}
+                },
+                "Tags" : [
+                    { "Key" : "Name" , "Value" : "scanner" }
+                ],
+                "IamInstanceProfile" : "scannerInstanceProfile"
+            }
+        },
+        "scanner2": {
+            "Type": "AWS::EC2::Instance",
+            "DependsOn": [ "SsmParamStoreWebServer1PublicIp", "SsmParamStoreWebServer2PublicIp", "SsmParamStoreDbPrivateIp" ],
+            "Properties" : {
+                "ImageId" : "ami-0cf6f5c8a62fa5da6",
+                "KeyName" : { "Ref" : "KeyPair" },
+                "InstanceType": "t3.micro",
+                "NetworkInterfaces": [ {
+                    "AssociatePublicIpAddress": "true",
+                    "DeviceIndex": "0",
+                    "GroupSet": [{ "Ref" : "scannerSg" }],
+                    "SubnetId": { "Ref" : "scannerPublicSubnet1" }
+                } ],
+                "UserData" : { "Fn::Base64": { "Fn::Join" : [  "" , [
+                    "#!/bin/bash\n",
+                    "sudo yum update -y\n",
+                    "sudo yum install nmap -y\n",
+                    "curl -o scanner.sh https://ee-assets-prod-us-east-1.s3.us-east-1.amazonaws.com/modules/e9318bb0fd774c42a9eaa3cae67eafda/v1/scanner-2.sh\n",
+                    "sudo chmod +x scanner.sh\n",
+                    "./scanner.sh\n"
+                    ]]}
+                },
+                "Tags" : [
+                    { "Key" : "Name" , "Value" : "scanner" }
+                ],
+                "IamInstanceProfile" : "scannerInstanceProfile"
+            }
+        },
+        "scanner3": {
+            "Type": "AWS::EC2::Instance",
+            "DependsOn": [ "SsmParamStoreWebServer1PublicIp", "SsmParamStoreWebServer2PublicIp", "SsmParamStoreDbPrivateIp" ],
+            "Properties" : {
+                "ImageId" : "ami-0cf6f5c8a62fa5da6",
+                "KeyName" : { "Ref" : "KeyPair" },
+                "InstanceType": "t3.micro",
+                "NetworkInterfaces": [ {
+                    "AssociatePublicIpAddress": "true",
+                    "DeviceIndex": "0",
+                    "GroupSet": [{ "Ref" : "scannerSg" }],
+                    "SubnetId": { "Ref" : "scannerPublicSubnet1" }
+                } ],
+                "UserData" : { "Fn::Base64": { "Fn::Join" : [  "" , [
+                    "#!/bin/bash\n",
+                    "sudo yum update -y\n",
+                    "sudo yum install nmap -y\n",
+                    "curl -o scanner.sh https://ee-assets-prod-us-east-1.s3.us-east-1.amazonaws.com/modules/e9318bb0fd774c42a9eaa3cae67eafda/v1/scanner-3.sh\n",
+                    "sudo chmod +x scanner.sh\n",
+                    "./scanner.sh\n"
+                    ]]}
+                },
+                "Tags" : [
+                    { "Key" : "Name" , "Value" : "scanner" }
+                ],
+                "IamInstanceProfile" : "scannerInstanceProfile"
+            }
+        },
+        "scanner4": {
+            "Type": "AWS::EC2::Instance",
+            "DependsOn": [ "SsmParamStoreWebServer1PublicIp", "SsmParamStoreWebServer2PublicIp", "SsmParamStoreDbPrivateIp" ],
+            "Properties" : {
+                "ImageId" : "ami-0cf6f5c8a62fa5da6",
+                "KeyName" : { "Ref" : "KeyPair" },
+                "InstanceType": "t3.micro",
+                "NetworkInterfaces": [ {
+                    "AssociatePublicIpAddress": "true",
+                    "DeviceIndex": "0",
+                    "GroupSet": [{ "Ref" : "scannerSg" }],
+                    "SubnetId": { "Ref" : "scannerPublicSubnet1" }
+                } ],
+                "UserData" : { "Fn::Base64": { "Fn::Join" : [  "" , [
+                    "#!/bin/bash\n",
+                    "sudo yum update -y\n",
+                    "sudo yum install nmap -y\n",
+                    "curl -o scanner.sh https://ee-assets-prod-us-east-1.s3.us-east-1.amazonaws.com/modules/e9318bb0fd774c42a9eaa3cae67eafda/v1/scanner-4.sh\n",
+                    "sudo chmod +x scanner.sh\n",
+                    "./scanner.sh\n"
+                    ]]}
+                },
+                "Tags" : [
+                    { "Key" : "Name" , "Value" : "scanner" }
+                ],
+                "IamInstanceProfile" : "scannerInstanceProfile"
+            }
+        },
+        "scanner5": {
+            "Type": "AWS::EC2::Instance",
+            "DependsOn": [ "SsmParamStoreWebServer1PublicIp", "SsmParamStoreWebServer2PublicIp", "SsmParamStoreDbPrivateIp" ],
+            "Properties" : {
+                "ImageId" : "ami-0cf6f5c8a62fa5da6",
+                "KeyName" : { "Ref" : "KeyPair" },
+                "InstanceType": "t3.micro",
+                "NetworkInterfaces": [ {
+                    "AssociatePublicIpAddress": "true",
+                    "DeviceIndex": "0",
+                    "GroupSet": [{ "Ref" : "scannerSg" }],
+                    "SubnetId": { "Ref" : "scannerPublicSubnet1" }
+                } ],
+                "UserData" : { "Fn::Base64": { "Fn::Join" : [  "" , [
+                    "#!/bin/bash\n",
+                    "sudo yum update -y\n",
+                    "sudo yum install nmap -y\n",
+                    "curl -o scanner.sh https://ee-assets-prod-us-east-1.s3.us-east-1.amazonaws.com/modules/e9318bb0fd774c42a9eaa3cae67eafda/v1/scanner-5.sh\n",
+                    "sudo chmod +x scanner.sh\n",
+                    "./scanner.sh\n"
+                    ]]}
+                },
+                "Tags" : [
+                    { "Key" : "Name" , "Value" : "scanner" }
+                ],
+                "IamInstanceProfile" : "scannerInstanceProfile"
+            }
+        },
+        "scanner6": {
+            "Type": "AWS::EC2::Instance",
+            "DependsOn": [ "SsmParamStoreWebServer1PublicIp", "SsmParamStoreWebServer2PublicIp", "SsmParamStoreDbPrivateIp" ],
+            "Properties" : {
+                "ImageId" : "ami-0cf6f5c8a62fa5da6",
+                "KeyName" : { "Ref" : "KeyPair" },
+                "InstanceType": "t3.micro",
+                "NetworkInterfaces": [ {
+                    "AssociatePublicIpAddress": "true",
+                    "DeviceIndex": "0",
+                    "GroupSet": [{ "Ref" : "scannerSg" }],
+                    "SubnetId": { "Ref" : "scannerPublicSubnet1" }
+                } ],
+                "UserData" : { "Fn::Base64": { "Fn::Join" : [  "" , [
+                    "#!/bin/bash\n",
+                    "sudo yum update -y\n",
+                    "sudo yum install nmap -y\n",
+                    "curl -o scanner.sh https://ee-assets-prod-us-east-1.s3.us-east-1.amazonaws.com/modules/e9318bb0fd774c42a9eaa3cae67eafda/v1/scanner-6.sh\n",
+                    "sudo chmod +x scanner.sh\n",
+                    "./scanner.sh\n"
+                    ]]}
+                },
+                "Tags" : [
+                    { "Key" : "Name" , "Value" : "scanner" }
+                ],
+                "IamInstanceProfile" : "scannerInstanceProfile"
+            }
+        },
+        "scanner7": {
+            "Type": "AWS::EC2::Instance",
+            "DependsOn": [ "SsmParamStoreWebServer1PublicIp", "SsmParamStoreWebServer2PublicIp", "SsmParamStoreDbPrivateIp" ],
+            "Properties" : {
+                "ImageId" : "ami-0cf6f5c8a62fa5da6",
+                "KeyName" : { "Ref" : "KeyPair" },
+                "InstanceType": "t3.micro",
+                "NetworkInterfaces": [ {
+                    "AssociatePublicIpAddress": "true",
+                    "DeviceIndex": "0",
+                    "GroupSet": [{ "Ref" : "scannerSg" }],
+                    "SubnetId": { "Ref" : "scannerPublicSubnet1" }
+                } ],
+                "UserData" : { "Fn::Base64": { "Fn::Join" : [  "" , [
+                    "#!/bin/bash\n",
+                    "sudo yum update -y\n",
+                    "sudo yum install nmap -y\n",
+                    "curl -o scanner.sh https://ee-assets-prod-us-east-1.s3.us-east-1.amazonaws.com/modules/e9318bb0fd774c42a9eaa3cae67eafda/v1/scanner-7.sh\n",
+                    "sudo chmod +x scanner.sh\n",
+                    "./scanner.sh\n"
+                    ]]}
+                },
+                "Tags" : [
+                    { "Key" : "Name" , "Value" : "scanner" }
+                ],
+                "IamInstanceProfile" : "scannerInstanceProfile"
+            }
+        },
+        "scanner8": {
+            "Type": "AWS::EC2::Instance",
+            "DependsOn": [ "SsmParamStoreWebServer1PublicIp", "SsmParamStoreWebServer2PublicIp", "SsmParamStoreDbPrivateIp" ],
+            "Properties" : {
+                "ImageId" : "ami-0cf6f5c8a62fa5da6",
+                "KeyName" : { "Ref" : "KeyPair" },
+                "InstanceType": "t3.micro",
+                "NetworkInterfaces": [ {
+                    "AssociatePublicIpAddress": "true",
+                    "DeviceIndex": "0",
+                    "GroupSet": [{ "Ref" : "scannerSg" }],
+                    "SubnetId": { "Ref" : "scannerPublicSubnet1" }
+                } ],
+                "UserData" : { "Fn::Base64": { "Fn::Join" : [  "" , [
+                    "#!/bin/bash\n",
+                    "sudo yum update -y\n",
+                    "sudo yum install nmap -y\n",
+                    "curl -o scanner.sh https://ee-assets-prod-us-east-1.s3.us-east-1.amazonaws.com/modules/e9318bb0fd774c42a9eaa3cae67eafda/v1/scanner-8.sh\n",
+                    "sudo chmod +x scanner.sh\n",
+                    "./scanner.sh\n"
+                    ]]}
+                },
+                "Tags" : [
+                    { "Key" : "Name" , "Value" : "scanner" }
+                ],
+                "IamInstanceProfile" : "scannerInstanceProfile"
+            }
+        },
+        "scanner9": {
+            "Type": "AWS::EC2::Instance",
+            "DependsOn": [ "SsmParamStoreWebServer1PublicIp", "SsmParamStoreWebServer2PublicIp", "SsmParamStoreDbPrivateIp" ],
+            "Properties" : {
+                "ImageId" : "ami-0cf6f5c8a62fa5da6",
+                "KeyName" : { "Ref" : "KeyPair" },
+                "InstanceType": "t3.micro",
+                "NetworkInterfaces": [ {
+                    "AssociatePublicIpAddress": "true",
+                    "DeviceIndex": "0",
+                    "GroupSet": [{ "Ref" : "scannerSg" }],
+                    "SubnetId": { "Ref" : "scannerPublicSubnet1" }
+                } ],
+                "UserData" : { "Fn::Base64": { "Fn::Join" : [  "" , [
+                    "#!/bin/bash\n",
+                    "sudo yum update -y\n",
+                    "sudo yum install nmap -y\n",
+                    "curl -o scanner.sh https://ee-assets-prod-us-east-1.s3.us-east-1.amazonaws.com/modules/e9318bb0fd774c42a9eaa3cae67eafda/v1/scanner-9.sh\n",
+                    "sudo chmod +x scanner.sh\n",
+                    "./scanner.sh\n"
+                    ]]}
+                },
+                "Tags" : [
+                    { "Key" : "Name" , "Value" : "scanner" }
+                ],
+                "IamInstanceProfile" : "scannerInstanceProfile"
+            }
+        },
+        "scanner10": {
+            "Type": "AWS::EC2::Instance",
+            "DependsOn": [ "SsmParamStoreWebServer1PublicIp", "SsmParamStoreWebServer2PublicIp", "SsmParamStoreDbPrivateIp" ],
+            "Properties" : {
+                "ImageId" : "ami-0cf6f5c8a62fa5da6",
+                "KeyName" : { "Ref" : "KeyPair" },
+                "InstanceType": "t3.micro",
+                "NetworkInterfaces": [ {
+                    "AssociatePublicIpAddress": "true",
+                    "DeviceIndex": "0",
+                    "GroupSet": [{ "Ref" : "scannerSg" }],
+                    "SubnetId": { "Ref" : "scannerPublicSubnet1" }
+                } ],
+                "UserData" : { "Fn::Base64": { "Fn::Join" : [  "" , [
+                    "#!/bin/bash\n",
+                    "sudo yum update -y\n",
+                    "sudo yum install nmap -y\n",
+                    "curl -o scanner.sh https://ee-assets-prod-us-east-1.s3.us-east-1.amazonaws.com/modules/e9318bb0fd774c42a9eaa3cae67eafda/v1/scanner-10.sh\n",
+                    "sudo chmod +x scanner.sh\n",
+                    "./scanner.sh\n"
+                    ]]}
+                },
+                "Tags" : [
+                    { "Key" : "Name" , "Value" : "scanner" }
+                ],
+                "IamInstanceProfile" : "scannerInstanceProfile"
+            }
+        },
+        "scannerpartner": {
+            "Type": "AWS::EC2::Instance",
+            "DependsOn": [ "SsmParamStoreWebServer1PublicIp", "SsmParamStoreWebServer2PublicIp", "SsmParamStoreDbPrivateIp" ],
+            "Properties" : {
+                "ImageId" : "ami-0cf6f5c8a62fa5da6",
+                "KeyName" : { "Ref" : "KeyPair" },
+                "InstanceType": "t3.micro",
+                "NetworkInterfaces": [ {
+                    "AssociatePublicIpAddress": "true",
+                    "DeviceIndex": "0",
+                    "GroupSet": [{ "Ref" : "scannerSg" }],
+                    "SubnetId": { "Ref" : "scannerPublicSubnet1" }
+                } ],
+                "UserData" : { "Fn::Base64": { "Fn::Join" : [  "" , [
+                    "#!/bin/bash\n",
+                    "sudo yum update -y\n",
+                    "sudo yum install nmap -y\n",
+                    "curl -o scanner.sh https://ee-assets-prod-us-east-1.s3.us-east-1.amazonaws.com/modules/e9318bb0fd774c42a9eaa3cae67eafda/v1/scanner-13.sh\n",
+                    "sudo chmod +x scanner.sh\n",
+                    "./scanner.sh\n"
+                    ]]}
+                },
+                "Tags" : [
+                    { "Key" : "Name" , "Value" : "partner-scanner" }
+                ],
+                "IamInstanceProfile" : "scannerInstanceProfile"
+            }
+        },
+        "validatorSg" : {
+            "Type" : "AWS::EC2::SecurityGroup",
+            "Properties" : {
+                "GroupName" : "validator-instance-sg",
+                "GroupDescription" : "validator security group",
+                "VpcId" : {"Ref" : "vpcScanners"},
+                "SecurityGroupIngress" : [
+                    {
+                        "IpProtocol" : "tcp",
+                        "FromPort" : 80,
+                        "ToPort" : 80,
+                        "CidrIp" : "0.0.0.0/0"
+                    },
+                    {
+                        "IpProtocol" : "tcp",
+                        "FromPort" : 22,
+                        "ToPort" : 22,
+                        "CidrIp" : "0.0.0.0/0"
+                    }
+                ]    
+            }
+        },
+        "validatorweb": {
+            "Type": "AWS::EC2::Instance",
+            "DependsOn": [ "SsmParamStoreWebServer1PublicIp", "SsmParamStoreWebServer2PublicIp", "SsmParamStoreDbPrivateIp" ],
+            "Properties" : {
+                "ImageId" : "ami-0cf6f5c8a62fa5da6",
+                "KeyName" : { "Ref" : "KeyPair" },
+                "InstanceType": "t3.micro",
+                "NetworkInterfaces": [ {
+                    "AssociatePublicIpAddress": "true",
+                    "DeviceIndex": "0",
+                    "GroupSet": [{ "Ref" : "validatorSg" }],
+                    "SubnetId": { "Ref" : "scannerPublicSubnet1" }
+                } ],
+                "UserData" : { "Fn::Base64": { "Fn::Join" : [  "" , [
+                    "#!/bin/bash\n",
+                    "sudo yum update -y\n",
+                    "curl -o userdata-validator.sh https://ee-assets-prod-us-east-1.s3.us-east-1.amazonaws.com/modules/e9318bb0fd774c42a9eaa3cae67eafda/v1/userdata-validator.sh\n",
+                    "sudo chmod +x userdata-validator.sh\n",
+                    "./userdata-validator.sh\n"
+                    ]]}
+                },
+                "Tags" : [
+                    { "Key" : "Name" , "Value" : "validator" }
+                ],
+                "IamInstanceProfile" : "scannerInstanceProfile"
+            }
+        },
+        "SsmParamStorePartnerServerPublicIp" : {
+            "Type" : "AWS::SSM::Parameter",
+            "DependsOn":"scannerpartner",
+            "Properties" : {
+                "Description" : "EC2 Partner instance Public IP",
+                "Name" : "partnerserver",
+                "Type" : "String",
+                "Value" : { "Fn::GetAtt" : [ "scannerpartner", "PublicIp" ] }
+            }
+        },
+        "deployInstanceSg" : {
+            "Type" : "AWS::EC2::SecurityGroup",
+            "Properties" : {
+                "GroupName" : "deploy-instance-sg",
+                "GroupDescription" : "Lambdas deploy instance",
+                "VpcId" : {"Ref" : "vpcScanners"}
+            }
+        },        
+        "deployInstanceRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                    "Version": "2012-10-17", 
+                    "Statement": [
+                        {
+                            "Action": "sts:AssumeRole", 
+                            "Effect": "Allow", 
+                            "Principal": {
+                                "Service": "ec2.amazonaws.com"
+                            }
+                        }
+                    ]
+                },
+                "Path": "/",
+                "Policies": [
+                    {
+                        "PolicyName": "Ec2Policy",
+                        "PolicyDocument": {
+                            "Version": "2012-10-17",
+                            "Statement": [
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "iam:PassRole",
+                                        "lambda:*",
+                                        "sns:*"
+                                    ],
+                                    "Resource": "*"
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        },
+        "deployInstProfile" : {
+            "Type" : "AWS::IAM::InstanceProfile",
+            "Properties" : {
+                "InstanceProfileName" : "deployInstanceProfile",
+                "Roles" : [{"Ref" : "deployInstanceRole"}]
+            }
+        },
+        "deployInstance": {
+            "Type": "AWS::EC2::Instance",
+            "Properties" : {
+                "ImageId" : "ami-0cf6f5c8a62fa5da6",
+                "KeyName" : { "Ref" : "KeyPair" },
+                "InstanceType": "t3.micro",
+                "NetworkInterfaces": [ {
+                    "AssociatePublicIpAddress": "true",
+                    "DeviceIndex": "0",
+                    "GroupSet": [{ "Ref" : "deployInstanceSg" }],
+                    "SubnetId": { "Ref" : "scannerPublicSubnet1" }
+                } ],
+                "UserData" : { "Fn::Base64": { "Fn::Join" : [  "" , [
+                    "#!/bin/bash\n",
+                    "sudo yum update -y\n",
+                    "curl -o lambda-create-loop.sh https://ee-assets-prod-us-east-1.s3.us-east-1.amazonaws.com/modules/e9318bb0fd774c42a9eaa3cae67eafda/v1/lambda-create-loop.sh\n",
+                    "sudo chmod +x lambda-create-loop.sh\n",
+                    "./lambda-create-loop.sh\n"
+                    ]]}
+                },
+                "Tags" : [
+                    { "Key" : "Name" , "Value" : "lambda-deploy-instance" }
+                ],
+                "IamInstanceProfile" : "deployInstanceProfile"
+            }
+        }
+    },
+    "Outputs" : {
+        "CognitoIdentityPoolId" : {
+            "Description": "Cognito Identity Pool ID",
+            "Value" : { "Ref" : "CognitoIdentityPool" }
+        },
+        "web1privateIp" : {
+            "Description": "Web server 1 private IP",
+            "Value" : { "Fn::GetAtt" : [ "ec2Web1", "PrivateIp" ]}
+        },
+        "web2privateIp" : {
+            "Description": "Web server 2 private IP",
+            "Value" : { "Fn::GetAtt" : [ "ec2Web2", "PrivateIp" ]}
+        },
+        "db1privateIp" : {
+            "Description": "DB server 1 private IP",
+            "Value" : { "Fn::GetAtt" : [ "ec2Db1", "PrivateIp" ]}
+        },
+        "partnerscanner" : {
+            "Description": "Partner server Public IP",
+            "Value" : { "Fn::GetAtt" : [ "scannerpartner", "PublicIp" ]}
+        },
+        "progressweb" : {
+            "Description": "Validation web server Public IP",
+            "Value" : { "Fn::GetAtt" : [ "validatorweb", "PublicIp" ]}
+        }
+    }
+}

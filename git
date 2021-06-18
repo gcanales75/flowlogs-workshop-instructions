@@ -1,0 +1,6 @@
+Add remote repo
+# git remote add containers-on-aws codecommit://containers-on-aws
+
+git add .
+git commit -m "----"
+git push -u containers-on-aws mainline
